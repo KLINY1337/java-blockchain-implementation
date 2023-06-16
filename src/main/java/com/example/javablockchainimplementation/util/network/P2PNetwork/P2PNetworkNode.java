@@ -6,6 +6,7 @@ import com.example.javablockchainimplementation.util.blockchain.blockchain_impl.
 import com.example.javablockchainimplementation.util.blockchain.blockchain_impl.BlockchainImpl;
 import com.example.javablockchainimplementation.util.network.Network;
 import com.example.javablockchainimplementation.util.network.NetworkNode;
+import com.example.javablockchainimplementation.util.network.NetworkUser;
 import com.example.javablockchainimplementation.util.network.NodeInformation;
 import org.apache.commons.lang3.SerializationUtils;
 
@@ -15,9 +16,9 @@ import org.apache.commons.lang3.SerializationUtils;
   транзакции в своем пространстве. Узел сети хранит в
   себе копию информации о блокчейне
 
-  Версия: 1.0
+  Версия: 2.0
   Автор: Черномуров Семён
-  Последнее изменение: 14.06.2023
+  Последнее изменение: 16.06.2023
 */
 public class P2PNetworkNode extends NetworkNode {
 
@@ -36,7 +37,7 @@ public class P2PNetworkNode extends NetworkNode {
         this.parentNetwork.addNode(this);
 
         //Получить корректную версию блокчейна
-        this.nodeInformation = getCorrectVersionOfBlockchain();
+        updateNodeInformation();
 
     }
 
@@ -80,7 +81,7 @@ public class P2PNetworkNode extends NetworkNode {
         //Создать блок
         final Block block = new Block(getCurrentBlockchainImplementation());
 
-        //Заполнить блок транзакциями
+        //Заполнить блок неподтвержденными транзакциями
         for (final Transaction transaction : getParentNetwork().getUntrustedTransactions()) {
             if (block.hasEmptyPlacesForTransactions()) {
                 block.addTransaction(transaction);
@@ -109,16 +110,23 @@ public class P2PNetworkNode extends NetworkNode {
         if (isBlockValid) {
             //Удаляем транзакции блока из множества неподтвержденных транзакций
             for (final Transaction transaction : block.getTransactions()) {
-                getParentNetwork().getUntrustedTransactions().remove(transaction);
-            }
+                NetworkUser sender = getParentNetwork().findUserByWallet(transaction.sender());
+                NetworkUser recipient = getParentNetwork().findUserByWallet(transaction.recipient());
 
-            //Распространяем изменения по сети
-            for (final NetworkNode networkNode : getParentNetwork().getNetworkNodes()) {
-                if (!networkNode.getIpAddress().equals(this.getIpAddress())) {
-
-                    final Blockchain nodeBlockchainImplementation = (Blockchain) networkNode.getNodeInformation();
-                    nodeBlockchainImplementation.addBlock(SerializationUtils.clone(block)); //TODO сделать по сети а не локально
+                if (sender.getBalance() >= transaction.amount()) {
+                    sender.changeBalance(-transaction.amount());
                 }
+                else {
+                    System.out.println("not enough money on sender");
+                }
+
+                //Если не происходит сжигание токенов и получатель существует
+                if (recipient != null) {
+                    //Начисляем получателю отправленную сумму
+                    recipient.changeBalance(transaction.amount());
+                }
+
+                getParentNetwork().getUntrustedTransactions().remove(transaction);
             }
         } else {
             System.out.println("block is invalid");
@@ -126,7 +134,7 @@ public class P2PNetworkNode extends NetworkNode {
     }
 
     //Метод получения корректной версии блокчейна из сети
-    private Blockchain getCorrectVersionOfBlockchain() {
+    public void updateNodeInformation() {
 
         int maxChainLength = -1;
         Blockchain longestBlockchain = null;
@@ -147,11 +155,11 @@ public class P2PNetworkNode extends NetworkNode {
 
         //Если в сети есть блокчейн, то возвращаем его
         if (longestBlockchain != null) {
-            return SerializationUtils.clone(longestBlockchain);
+            this.nodeInformation = SerializationUtils.clone(longestBlockchain);
         }
         //В противном случае создаем новый
         else {
-            return new BlockchainImpl();
+            this.nodeInformation = new BlockchainImpl();
         }
     }
 }

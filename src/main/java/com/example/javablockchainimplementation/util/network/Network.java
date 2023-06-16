@@ -9,9 +9,9 @@ import java.util.Set;
   Интерфейса содержит основной набор методов для
   работы с абстрактной сетью
 
-  Версия: 1.0
+  Версия: 2.0
   Автор: Черномуров Семён
-  Последнее изменение: 14.06.2023
+  Последнее изменение: 16.06.2023
 */
 public interface Network {
 
@@ -26,4 +26,16 @@ public interface Network {
 
     //Метод получения неподтвержденных транзакций в сети
     Set<Transaction> getUntrustedTransactions();
+
+    //Метод получения всех пользователей сети
+    Set<NetworkUser> getNetworksUsers();
+
+    //Метод добавления пользователя в сеть
+    NetworkUser addUser(String login, String password);
+
+    //Метод поиска пользователя по кошельку
+    NetworkUser findUserByWallet(String wallet);
+
+    //Метод обновления узлов сети
+    void updateNodes();
 }

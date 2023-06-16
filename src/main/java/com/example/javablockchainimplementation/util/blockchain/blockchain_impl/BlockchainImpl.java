@@ -10,14 +10,15 @@ import java.util.List;
   Блокчейн определяет максимальное число транзакций, подтверждаемых
   одним блоком, а также содержит цепочку блоков, добытых майнерами
 
-  Версия: 1.0
+  Версия: 2.0
   Автор: Черномуров Семён
-  Последнее изменение: 14.06.2023
+  Последнее изменение: 16.06.2023
 */
 public class BlockchainImpl implements Blockchain {
 
     private static final int MAX_BLOCK_SIZE = 10; //Максимальное число транзакций в блоке
     private final List<Block> chain; //Цепочка блоков
+    private double tokensLeft = 10000000; // Максимальное число токенов в блокчейне
 
     //Конструктор
     public BlockchainImpl() {
@@ -79,6 +80,17 @@ public class BlockchainImpl implements Blockchain {
     @Override
     public List<Block> getChain() {
         return chain;
+    }
+
+    @Override
+    public double getTokensLeft() {
+        return tokensLeft;
+    }
+
+    @Override
+    public void decreaseTokensLeft(double miningReward) {
+        assert tokensLeft - miningReward >= 0;
+        tokensLeft -= miningReward;
     }
 
     //Метод создания генезис-блока

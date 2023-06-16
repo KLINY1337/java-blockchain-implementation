@@ -9,9 +9,9 @@ import java.util.List;
   Интерфейс Blockchain
   Определяет операции, производимые над блокчейном
 
-  Версия: 1.0
+  Версия: 2.0
   Автор: Черномуров Семён
-  Последнее изменение: 14.06.2023
+  Последнее изменение: 16.06.2023
 */
 public interface Blockchain extends NodeInformation {
 
@@ -35,4 +35,10 @@ public interface Blockchain extends NodeInformation {
 
     //Метод получения цепочки блоков
     List<Block> getChain();
+
+    //Метод получения количества оставшихся токенов в блокчейне
+    double getTokensLeft();
+
+    //Метод уменьшения оставшихся в сети токенов
+    void decreaseTokensLeft(double miningReward);
 }

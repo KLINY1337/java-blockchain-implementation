@@ -1,15 +1,13 @@
 package com.example.javablockchainimplementation;
 
-import com.example.javablockchainimplementation.util.network.P2PNetwork.P2PNetworkNode;
-import com.example.javablockchainimplementation.util.network.P2PNetwork.P2PNetwork;
 import com.example.javablockchainimplementation.util.blockchain.blockchain_impl.Block;
-import com.example.javablockchainimplementation.util.blockchain.Transaction;
-import com.example.javablockchainimplementation.util.hash.SHA256;
 import com.example.javablockchainimplementation.util.miner.Miner;
 import com.example.javablockchainimplementation.util.miner.MinerImpl;
+import com.example.javablockchainimplementation.util.network.NetworkUser;
+import com.example.javablockchainimplementation.util.network.P2PNetwork.P2PNetwork;
+import com.example.javablockchainimplementation.util.network.P2PNetwork.P2PNetworkNode;
 
 import java.io.IOException;
-import java.util.Date;
 
 //@SpringBootApplication
 public class JavaBlockchainImplementationApplication {
@@ -53,7 +51,7 @@ public class JavaBlockchainImplementationApplication {
         P2PNetworkNode node2 = new P2PNetworkNode("2.2.2.2", 9999, network);
         P2PNetworkNode node3 = new P2PNetworkNode("3.3.3.3", 9999, network);
 
-        Transaction transaction1 = new Transaction("sender", "reciever", 5, SHA256.generateHash(String.valueOf(new Date().getTime())));
+        /*Transaction transaction1 = new Transaction("sender", "reciever", 5, SHA256.generateHash(String.valueOf(new Date().getTime())));
 
         for (int i = 0; i < 100; i++) {
 
@@ -62,8 +60,8 @@ public class JavaBlockchainImplementationApplication {
         }
 
         node.addTransaction(transaction1);
-
-        Block block = node.createBlock();
+*/
+/*        Block block = node.createBlock();
         //node.addBlockToChain(block);
 
         Miner miner = new MinerImpl();
@@ -85,7 +83,8 @@ public class JavaBlockchainImplementationApplication {
         node3.addBlockToChain(block3);
         node2.addBlockToChain(block4);
         node.addBlockToChain(block);
-*/
+
+
         Block block1 = node.createBlock();
         miner.mineBlock(block1);
         node.addBlockToChain(block1);
@@ -101,6 +100,21 @@ public class JavaBlockchainImplementationApplication {
         Block block4 = node2.createBlock();
         miner.mineBlock(block4);
         node2.addBlockToChain(block4);
+*/
+        NetworkUser user1 = network.addUser("login1", "password");
+        NetworkUser user2 = network.addUser("login2", "password");
+
+        Miner miner = new MinerImpl();
+
+        for (int i = 0; i < 100; i++) {
+            Block block = node1.createBlock();
+            miner.mineBlock(block, user1);
+            node1.addBlockToChain(block);
+            network.updateNodes();
+            ;
+        }
+
+        //node2.addBlockToChain(block5);
     }
 
 }
