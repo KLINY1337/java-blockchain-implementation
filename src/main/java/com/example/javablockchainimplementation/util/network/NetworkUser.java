@@ -2,6 +2,7 @@ package com.example.javablockchainimplementation.util.network;
 
 import com.example.javablockchainimplementation.util.blockchain.Transaction;
 import com.example.javablockchainimplementation.util.hash.SHA256;
+import com.example.javablockchainimplementation.util.network.P2PNetwork.P2PNetwork;
 
 import java.security.SecureRandom;
 import java.util.Date;
@@ -14,28 +15,46 @@ import java.util.stream.Collectors;
   аутентификации пользователя в сети, а также
   для совершения внутрисетевых переводов
 
-  Версия: 1.0
+  Версия: 3.0
   Автор: Черномуров Семён
-  Последнее изменение: 16.06.2023
+  Последнее изменение: 25.06.2023
 */
 public class NetworkUser {
     private static final int WALLET_LENGTH = 40; //Длина кошелька в символах
-    private static final String CHARACTERS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"; //Символы, используемые в имени кошелька
-    private final Network parentNetwork; //Сеть, которой принадлежит пользователь
+    private static final String CHARACTERS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    //Символы, используемые в имени кошелька
+    private final P2PNetwork parentNetwork; //Сеть, которой принадлежит пользователь
     private final String wallet; //Кошелек пользователя
-    private double balance; //Баланс пользователя
     private final String login; //Логин пользователя
     private final String passwordHash; //Хэш пароля пользователя
+    private double balance; //Баланс пользователя
+
 
     //Конструктор
-    public NetworkUser(String login,
-                       String password,
-                       Network parentNetwork) {
+    public NetworkUser(
+            String login,
+            String password,
+            P2PNetwork parentNetwork
+    ) {
         this.parentNetwork = parentNetwork;
         this.login = login;
         this.passwordHash = SHA256.generateHash(password);
         this.wallet = generateWallet();
         this.balance = 0L;
+    }
+
+    //Метод генерации случайной строки
+    public static String generateRandomString() {
+        SecureRandom random = new SecureRandom();
+        StringBuilder sb = new StringBuilder(WALLET_LENGTH);
+
+        //Сгенерировать строку из символов строки CHARACTERS
+        for (int i = 0; i < WALLET_LENGTH; i++) {
+            int randomIndex = random.nextInt(CHARACTERS.length());
+            char randomChar = CHARACTERS.charAt(randomIndex);
+            sb.append(randomChar);
+        }
+        return sb.toString();
     }
 
     //Метод изменения баланса кошелька
@@ -44,10 +63,46 @@ public class NetworkUser {
         this.balance += amount;
     }
 
+    //Метод получения баланса пользователя
+    public double getBalance() {
+        return balance;
+    }
+
+    //Метод получения логина пользователя
+    public String getLogin() {
+        return login;
+    }
+
+    //Метод получения кошелька пользователя
+    public String getWallet() {
+        return wallet;
+    }
+
+    //Метод перевода токенов другому пользователю
+    public void sendCurrency(String recipient, double amount) {
+
+        double transactionFee = 0;
+        if (amount > 0) {
+            //Расчет комиссии за перевод
+            transactionFee = 1 / amount / 100;
+        }
+
+        //Создание неподтвержденной транзакции
+        Transaction transaction = new Transaction(
+                this.getWallet(),
+                recipient,
+                amount - transactionFee,
+                SHA256.generateHash(String.valueOf(new Date().getTime())),
+                transactionFee);
+
+        //Добавление транзакции в сеть
+        parentNetwork.addTransaction(transaction);
+    }
+
     //Метод генерации кошелька
     private String generateWallet() {
         //Получить список пользователей сети
-        Set<NetworkUser> setOfUsers = getParentNetwork().getNetworksUsers();
+        Set<NetworkUser> setOfUsers = parentNetwork.getNetworksUsers();
 
         String wallet = generateRandomString();
 
@@ -65,57 +120,5 @@ public class NetworkUser {
         }
 
         return wallet;
-    }
-
-    //Метод генерации случайной строки
-    public static String generateRandomString() {
-        SecureRandom random = new SecureRandom();
-        StringBuilder sb = new StringBuilder(WALLET_LENGTH);
-
-        //Сгенерировать строку из символов строки CHARACTERS
-        for (int i = 0; i < WALLET_LENGTH; i++) {
-            int randomIndex = random.nextInt(CHARACTERS.length());
-            char randomChar = CHARACTERS.charAt(randomIndex);
-            sb.append(randomChar);
-        }
-        return sb.toString();
-    }
-
-    //Метод получения сети, к которой относится пользователь
-    private Network getParentNetwork() {
-        return parentNetwork;
-    }
-
-    //Метод получения кошелька пользователя
-    public String getWallet() {
-        return wallet;
-    }
-
-    //Метод получения логина пользователя
-    public String getLogin() {
-        return login;
-    }
-
-    //Метод перевода токенов другому пользователю
-    public void sendCurrency(String recipient, double amount) {
-
-        //Расчет комиссии за перевод
-        double transactionFee = 1 / amount / 100;
-
-        //Создание неподтвержденной транзакции
-        Transaction transaction = new Transaction(
-                this.getWallet(),
-                recipient,
-                amount - transactionFee,
-                SHA256.generateHash(String.valueOf(new Date().getTime())),
-                transactionFee);
-
-        //Добавление транзакции в сеть
-        parentNetwork.addTransaction(transaction);
-    }
-
-    //Метод получения баланса пользователя
-    public double getBalance() {
-        return balance;
     }
 }

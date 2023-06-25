@@ -8,12 +8,12 @@ import com.example.javablockchainimplementation.util.network.NetworkUser;
   Майнер содержит метод майнинга блока методом перебора
   изменяемого значения блока
 
-  Версия: 2.0
+  Версия: 3.0
   Автор: Черномуров Семён
-  Последнее изменение: 16.06.2023
+  Последнее изменение: 25.06.2023
 */
 public interface Miner {
 
     //Метод майнинга блока
-    Block mineBlock(Block unminedBlock, NetworkUser user);
+    Block mineBlock(Block block, NetworkUser user);
 }

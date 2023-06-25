@@ -1,8 +1,7 @@
 package com.example.javablockchainimplementation.util.network.P2PNetwork;
 
 import com.example.javablockchainimplementation.util.blockchain.Transaction;
-import com.example.javablockchainimplementation.util.network.Network;
-import com.example.javablockchainimplementation.util.network.NetworkNode;
+import com.example.javablockchainimplementation.util.hash.SHA256;
 import com.example.javablockchainimplementation.util.network.NetworkUser;
 
 import java.io.BufferedReader;
@@ -20,79 +19,24 @@ import java.util.stream.Collectors;
   транзакции в своем пространстве, а множество узлов
   сети, хранящих копии блокчейна
 
-  Версия: 2.0
+  Версия: 3.0
   Автор: Черномуров Семён
-  Последнее изменение: 16.06.2023
+  Последнее изменение: 25.06.2023
 */
-public class P2PNetwork implements Network {
-    private Set<NetworkNode> networkNodes; //Множество узлов сети
-    private Set<NetworkUser> networkUsers; //Множество пользователей (кошельков) сети
-    private Set<Transaction> untrustedTransactions; //Множество неподтвержденных транзакций в сети
+public class P2PNetwork {
+    private static final double MINIMAL_TRANSACTION_SIZE = 0.01;
+    private final Set<P2PNetworkNode> networkNodes; //Множество узлов сети
+    private final Set<NetworkUser> networkUsers; //Множество пользователей (кошельков) сети
+    private final Set<Transaction> untrustedTransactions; //Множество неподтвержденных транзакций в сети
+    private final NetworkUser feeDistributingUser; //Пользователь для распределения наград за майнинг и содержание сети
 
     //Конструктор
     public P2PNetwork() {
         this.networkNodes = new HashSet<>();
         this.networkUsers = new HashSet<>();
         this.untrustedTransactions = new HashSet<>();
-    }
-
-    @Override
-    public void addNode(NetworkNode node) {
-        assert node != null;
-        getNetworkNodes().add(node);
-    }
-
-    @Override
-    public void addTransaction(Transaction transaction) {
-        assert transaction != null;
-        getUntrustedTransactions().add(transaction);
-    }
-
-    @Override
-    public Set<Transaction> getUntrustedTransactions() {
-        return untrustedTransactions;
-    }
-
-    @Override
-    public Set<NetworkUser> getNetworksUsers() {
-        return networkUsers;
-    }
-
-    @Override
-    public NetworkUser addUser(String login, String password) {
-        boolean isLoginOccupied = getNetworksUsers().stream().map(NetworkUser::getLogin).collect(Collectors.toSet()).contains(login);
-
-        //Если логин не занят
-        if (!isLoginOccupied) {
-
-            //Добавить пользователя в сеть
-            NetworkUser newUser = new NetworkUser(login, password, this);
-            getNetworksUsers().add(newUser);
-            return newUser;
-        }
-        else {
-            System.out.println("user occupied");; //TODO что то поменять
-            return null;
-        }
-    }
-
-    @Override
-    public NetworkUser findUserByWallet(String wallet) {
-        Optional<NetworkUser> networkUser = getNetworksUsers().stream().filter(user -> user.getWallet().equals(wallet)).findFirst();
-
-        return networkUser.orElse(null);
-    }
-
-    @Override
-    public void updateNodes() {
-        for (NetworkNode networkNode : getNetworkNodes()) {
-            networkNode.updateNodeInformation();
-        }
-    }
-
-    @Override
-    public Set<NetworkNode> getNetworkNodes() {
-        return networkNodes;
+        this.feeDistributingUser = addUser(SHA256.generateHash(NetworkUser.generateRandomString()),
+                NetworkUser.generateRandomString() + NetworkUser.generateRandomString());
     }
 
     //Метод получения публичного IP-адреса (требует доработок)
@@ -107,5 +51,84 @@ public class P2PNetwork implements Network {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    //Метод добавления узла в сеть
+    public void addNode(P2PNetworkNode node) {
+        assert node != null;
+        networkNodes.add(node);
+    }
+
+    //Метод добавления неподтвержденной транзакции в сеть
+    public void addTransaction(Transaction transaction) {
+        assert transaction != null;
+        untrustedTransactions.add(transaction);
+    }
+
+    //Метод добавления пользователя в сеть
+    public NetworkUser addUser(String login, String password) {
+
+        //Если логин не занят
+        if (!isLoginOccupied(login)) {
+
+            //Добавить пользователя в сеть
+            NetworkUser newUser = new NetworkUser(login, password, this);
+            networkUsers.add(newUser);
+
+            return newUser;
+        }
+        else {
+            System.out.println("user occupied");//TODO что то поменять
+            return null;
+        }
+    }
+
+    //Метод поиска объекта пользователя по его кошельку
+    public NetworkUser findUserByWallet(String wallet) {
+        Optional<NetworkUser> networkUser = getNetworksUsers()
+                .stream()
+                .filter(user -> user.getWallet().equals(wallet))
+                .findFirst();
+
+        return networkUser.orElse(null);
+    }
+
+    //Метод получения распределяющего награды пользователя
+    public NetworkUser getFeeDistributingUser() {
+        return feeDistributingUser;
+    }
+
+    //Метод получения минимального объема транзакции
+    public double getMinimalTransactionSize() {
+        return MINIMAL_TRANSACTION_SIZE;
+    }
+
+    //Метод получения узлов сети
+    public Set<P2PNetworkNode> getNetworkNodes() {
+        return networkNodes;
+    }
+
+    //Метод получения пользователей сети
+    public Set<NetworkUser> getNetworksUsers() {
+        return networkUsers;
+    }
+
+    //Метод получения неподтвержденных транзакций сети
+    public Set<Transaction> getUntrustedTransactions() {
+        return untrustedTransactions;
+    }
+
+    //Метод обновления узлов сети
+    public void updateNodes() {
+        networkNodes.forEach(P2PNetworkNode::updateBlockchain);
+    }
+
+    //Метод проверки занятости логина в сети
+    private boolean isLoginOccupied(String login) {
+        return getNetworksUsers()
+                .stream()
+                .map(NetworkUser::getLogin)
+                .collect(Collectors.toSet())
+                .contains(login);
     }
 }

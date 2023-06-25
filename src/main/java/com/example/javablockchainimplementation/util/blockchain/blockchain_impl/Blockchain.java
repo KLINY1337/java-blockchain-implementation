@@ -1,7 +1,6 @@
 package com.example.javablockchainimplementation.util.blockchain.blockchain_impl;
 
-import com.example.javablockchainimplementation.util.blockchain.Blockchain;
-
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -10,18 +9,16 @@ import java.util.List;
   Блокчейн определяет максимальное число транзакций, подтверждаемых
   одним блоком, а также содержит цепочку блоков, добытых майнерами
 
-  Версия: 2.0
+  Версия: 3.0
   Автор: Черномуров Семён
-  Последнее изменение: 16.06.2023
+  Последнее изменение: 25.06.2023
 */
-public class BlockchainImpl implements Blockchain {
-
-    private static final int MAX_BLOCK_SIZE = 10; //Максимальное число транзакций в блоке
+public class Blockchain implements Serializable {
     private final List<Block> chain; //Цепочка блоков
     private double tokensLeft = 10000000; // Максимальное число токенов в блокчейне
 
     //Конструктор
-    public BlockchainImpl() {
+    public Blockchain() {
         this.chain = new ArrayList<>();
 
         //Создать генезис-блок и добавить в цепочку
@@ -29,32 +26,40 @@ public class BlockchainImpl implements Blockchain {
         this.chain.add(genesisBlock);
     }
 
-    @Override
+    //Метод добавления блока в блокчейн
     public boolean addBlock(final Block block) {
 
         assert block != null;
 
+        //Если блок можно добавить в цепочку
         if (isBlockValid(block) && !isBlockHashOccupied(block.getHash()) && block.isMined()) {
-            getChain().add(block);
+            chain.add(block);
             return true;
-        } else {
+        }
+        else {
             System.out.println("block is invalid");
             return false;
         }
         //TODO validateBlockchain
     }
 
-    @Override
-    public Block getLastBlock() {
-        return getChain().get(getChain().size() - 1);
+    //Метод уменьшения кол-ва оставшихся для эмиссии монет
+    public void decreaseTokensLeft(double miningReward) {
+        assert tokensLeft - miningReward >= 0;
+        tokensLeft -= miningReward;
     }
 
-    @Override
-    public boolean isEmpty() {
-        return getChain().isEmpty();
+    //Метод получения цепочки блоков
+    public List<Block> getChain() {
+        return chain;
     }
 
-    @Override
+    //Метод получения кол-ва монет, доступных для эмисии
+    public double getTokensLeft() {
+        return tokensLeft;
+    }
+
+    //Метод проверки, не занят ли хэш другими блоками
     public boolean isBlockHashOccupied(final String hash) {
 
         assert !hash.equals("");
@@ -67,30 +72,9 @@ public class BlockchainImpl implements Blockchain {
         return false;
     }
 
-    @Override
-    public int getChainLength() {
-        return getChain().size();
-    }
-
-    @Override
-    public int getMaxAmountOfTransactionsInBlock() {
-        return MAX_BLOCK_SIZE;
-    }
-
-    @Override
-    public List<Block> getChain() {
-        return chain;
-    }
-
-    @Override
-    public double getTokensLeft() {
-        return tokensLeft;
-    }
-
-    @Override
-    public void decreaseTokensLeft(double miningReward) {
-        assert tokensLeft - miningReward >= 0;
-        tokensLeft -= miningReward;
+    //Метод проверки заполненности цепочки
+    public boolean isEmpty() {
+        return chain.isEmpty();
     }
 
     //Метод создания генезис-блока
@@ -106,13 +90,14 @@ public class BlockchainImpl implements Blockchain {
         //Проверка, чтобы блок при вставке не нарушал целостности цепочки
         Block currentBlock = block;
 
-        for (int i = getChain().size() - 1; i >= 0; i--) {
+        for (int i = chain.size() - 1; i >= 0; i--) {
 
-            Block lastBlock = getChain().get(i);
+            Block lastBlock = chain.get(i);
 
             if (lastBlock.getHash().equals(currentBlock.getPreviousHash())) {
                 currentBlock = lastBlock;
-            } else {
+            }
+            else {
                 return false;
             }
         }

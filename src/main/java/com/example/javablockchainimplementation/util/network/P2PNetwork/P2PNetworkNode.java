@@ -1,14 +1,12 @@
 package com.example.javablockchainimplementation.util.network.P2PNetwork;
 
-import com.example.javablockchainimplementation.util.blockchain.Blockchain;
 import com.example.javablockchainimplementation.util.blockchain.Transaction;
 import com.example.javablockchainimplementation.util.blockchain.blockchain_impl.Block;
-import com.example.javablockchainimplementation.util.blockchain.blockchain_impl.BlockchainImpl;
-import com.example.javablockchainimplementation.util.network.Network;
-import com.example.javablockchainimplementation.util.network.NetworkNode;
+import com.example.javablockchainimplementation.util.blockchain.blockchain_impl.Blockchain;
 import com.example.javablockchainimplementation.util.network.NetworkUser;
-import com.example.javablockchainimplementation.util.network.NodeInformation;
 import org.apache.commons.lang3.SerializationUtils;
+
+import java.util.function.Consumer;
 
 /*
   Реализация абстрактного класса NetworkNode
@@ -16,17 +14,27 @@ import org.apache.commons.lang3.SerializationUtils;
   транзакции в своем пространстве. Узел сети хранит в
   себе копию информации о блокчейне
 
-  Версия: 2.0
+  Версия: 3.0
   Автор: Черномуров Семён
-  Последнее изменение: 16.06.2023
+  Последнее изменение: 25.06.2023
 */
-public class P2PNetworkNode extends NetworkNode {
+public class P2PNetworkNode {
+
+    private final NetworkUser networkUser;
+    private final String ipAddress;
+    private final int port;
+    private final P2PNetwork parentNetwork;
+    private Blockchain blockchain;
+
 
     //Конструктор
-    public P2PNetworkNode(final String ipAddress, //IP-адрес узла
-                          final int port, //Открытый порт узла
-                          final P2PNetwork parentNetwork //Сеть, к которой относится узел
-                            ) {
+    public P2PNetworkNode(
+            final String ipAddress, //IP-адрес узла
+            final int port, //Открытый порт узла
+            final P2PNetwork parentNetwork, //Сеть, к которой относится узел
+            String login, //Логин для кошелька, презентующего узел
+            String password //Пароль для кошелька, презентующего узел
+    ) {
 
         assert 0 <= port && port <= 65535;
         assert parentNetwork != null;
@@ -35,67 +43,11 @@ public class P2PNetworkNode extends NetworkNode {
         this.port = port;
         this.parentNetwork = parentNetwork;
         this.parentNetwork.addNode(this);
+        this.networkUser = parentNetwork.addUser(login, password);
 
         //Получить корректную версию блокчейна
-        updateNodeInformation();
+        updateBlockchain();
 
-    }
-
-    @Override
-    public void addTransaction(final Transaction transaction) {
-
-        assert transaction != null;
-
-        //Добавить транзакцию в сеть
-        final Network parentNetwork = getParentNetwork();
-        parentNetwork.addTransaction(transaction);
-
-        //Распространить транзакцию по всем узлам
-        for (final NetworkNode networkNode : getParentNetwork().getNetworkNodes()) {
-
-            //Избегаем повторного добавления транзакции в изначальный узел
-            if (!networkNode.getIpAddress().equals(this.getIpAddress())) {
-                networkNode.getParentNetwork().addTransaction(SerializationUtils.clone(transaction)); //TODO сделать по сети а не локально
-            }
-        }
-    }
-
-    @Override
-    public String getIpAddress() {
-        return ipAddress;
-    }
-
-    @Override
-    public Network getParentNetwork() {
-        return parentNetwork;
-    }
-
-    @Override
-    public NodeInformation getNodeInformation() {
-        return nodeInformation;
-    }
-
-    //Метод создания нового блока
-    public Block createBlock() {
-
-        //Создать блок
-        final Block block = new Block(getCurrentBlockchainImplementation());
-
-        //Заполнить блок неподтвержденными транзакциями
-        for (final Transaction transaction : getParentNetwork().getUntrustedTransactions()) {
-            if (block.hasEmptyPlacesForTransactions()) {
-                block.addTransaction(transaction);
-            } else {
-                break;
-            }
-        }
-
-        return block;
-    }
-
-    //Метод получения копии блокчейна, находящейся на узле
-    private Blockchain getCurrentBlockchainImplementation() {
-        return (Blockchain) getNodeInformation();
     }
 
     //Метод добавления блока в цепь
@@ -104,10 +56,13 @@ public class P2PNetworkNode extends NetworkNode {
         assert block != null;
 
         //Добавление блока в цепь (true - если блок добавился в цепь, false - в противном случае)
-        final boolean isBlockValid = getCurrentBlockchainImplementation().addBlock(block);
+        final boolean isBlockValid = blockchain.addBlock(block);
 
         //Если блок добавился в цепь корректно
         if (isBlockValid) {
+
+            double transactionsFeeSum = 0;
+
             //Удаляем транзакции блока из множества неподтвержденных транзакций
             for (final Transaction transaction : block.getTransactions()) {
                 NetworkUser sender = getParentNetwork().findUserByWallet(transaction.sender());
@@ -126,41 +81,120 @@ public class P2PNetworkNode extends NetworkNode {
                     recipient.changeBalance(transaction.amount());
                 }
 
-                getParentNetwork().getUntrustedTransactions().remove(transaction);
+                //Рассчитываем общую сумму комиссий за транзакции из блока
+                transactionsFeeSum += transaction.transactionFee();
+
+                //Удаляем транзакцию из списка неподтвержденных
+                parentNetwork.getUntrustedTransactions().remove(transaction);
             }
-        } else {
+
+            //Распределяем общую сумму комиссий за транзакции между узлами сети в качестве награды
+            boolean isNetworkHasUsers = !parentNetwork.getNetworksUsers().isEmpty();
+            boolean isTransactionsFeeSumEnoughForRewardAllNodes =
+                    transactionsFeeSum > parentNetwork.getMinimalTransactionSize() * parentNetwork.getNetworksUsers().size();
+
+            if (isNetworkHasUsers && isTransactionsFeeSumEnoughForRewardAllNodes) {
+
+                double rewardForNode = Math.max(
+                        transactionsFeeSum / parentNetwork.getNetworksUsers().size(),
+                        parentNetwork.getMinimalTransactionSize()
+                );
+
+                NetworkUser feeDistributingUser = parentNetwork.getFeeDistributingUser();
+
+                Consumer<P2PNetworkNode> sendRewardForNode =
+                        node -> feeDistributingUser.sendCurrency(node.getNetworkUser().getWallet(), rewardForNode);
+
+                parentNetwork
+                        .getNetworkNodes()
+                        .forEach(sendRewardForNode)
+                ;
+
+            }
+        }
+        else {
             System.out.println("block is invalid");
         }
     }
 
+    //Метод добавления пользователя в сеть
+    public NetworkUser addUser(String login, String password) {
+        return parentNetwork.addUser(login, password);
+    }
+
+    //Метод создания нового блока
+    public Block createBlock() {
+
+        //Создать блок
+        final Block block = new Block(blockchain);
+
+        //Заполнить блок неподтвержденными транзакциями
+        for (final Transaction transaction : parentNetwork.getUntrustedTransactions()) {
+            if (block.hasEmptyPlacesForTransactions()) {
+                block.addTransaction(transaction);
+            }
+            else {
+                break;
+            }
+        }
+
+        return block;
+    }
+
+    //Метод получения ip-адреса узла сети
+    public String getIpAddress() {
+        return ipAddress;
+    }
+
+    //Метод получения пользователя, прикрепленного к узлу
+    public NetworkUser getNetworkUser() {
+        return this.networkUser;
+    }
+
     //Метод получения корректной версии блокчейна из сети
-    public void updateNodeInformation() {
+    public void updateBlockchain() {
 
         int maxChainLength = -1;
         Blockchain longestBlockchain = null;
 
         //Поиск самой длинной цепочки, представленной в сети
-        for (final NetworkNode networkNode : this.getParentNetwork().getNetworkNodes()) {
+        for (final P2PNetworkNode networkNode : parentNetwork.getNetworkNodes()) {
 
-            if (!networkNode.getIpAddress().equals(this.getIpAddress())) {
+            boolean isNotCurrentNode = !networkNode.getIpAddress().equals(this.getIpAddress());
+            if (isNotCurrentNode) {
 
-                Blockchain nodeBlockchainImplementation = (Blockchain) networkNode.getNodeInformation();
-                if (nodeBlockchainImplementation.getChainLength() > maxChainLength) {
+                int nodeBlockchainLength = networkNode.getBlockchainLength();
 
-                    maxChainLength = nodeBlockchainImplementation.getChainLength();
-                    longestBlockchain = nodeBlockchainImplementation;
+                if (nodeBlockchainLength > maxChainLength) {
+
+                    maxChainLength = nodeBlockchainLength;
+                    longestBlockchain = networkNode.getBlockchain();
                 }
             }
         }
 
         //Если в сети есть блокчейн, то возвращаем его
         if (longestBlockchain != null) {
-            this.nodeInformation = SerializationUtils.clone(longestBlockchain);
+            this.blockchain = SerializationUtils.clone(longestBlockchain);
         }
         //В противном случае создаем новый
         else {
-            this.nodeInformation = new BlockchainImpl();
+            this.blockchain = new Blockchain();
         }
+    }
+
+    //Метод получения блокчейна на узле
+    private Blockchain getBlockchain() {
+        return blockchain;
+    }
+
+    private int getBlockchainLength() {
+        return blockchain.getChain().size();
+    }
+
+
+    private P2PNetwork getParentNetwork() {
+        return parentNetwork;
     }
 }
 
